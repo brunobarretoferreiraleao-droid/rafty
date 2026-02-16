@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/github/last-commit/brunobarretoferreiraleao-droid/rafty" />
   <img src="https://img.shields.io/badge/Status-Em%20Desenvolvimento-yellow" />
   <img src="https://img.shields.io/badge/Go-1.22-blue" />
-  <img src="https://img.shields.io/badge/Next.js-14-black" />
+  <img src="https://img.shields.io/badge/Next.js-16-black" />
 </p>
 
 ---
