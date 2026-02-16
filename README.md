@@ -34,7 +34,7 @@ O objetivo é simular um ambiente real de produção, aplicando boas práticas m
 ```text
 Client (Next.js + TypeScript)
         ↓
-API REST (Go + Gin)
+API REST (Go + Fiber)
         ↓
 PostgreSQL
 ```
