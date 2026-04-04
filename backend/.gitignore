@@ -1,0 +1,49 @@
+# =========================
+# ENV / SECRETS
+# =========================
+.env
+*.env
+
+# =========================
+# GO
+# =========================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+vendor/
+
+# build artifacts
+backend/bin/
+backend/build/
+dist/
+
+# =========================
+# NODE / NEXT
+# =========================
+node_modules/
+.next/
+out/
+frontend/.next/
+frontend/node_modules/
+
+# =========================
+# OS / EDITOR
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# LOGS
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
