@@ -4,6 +4,7 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "citext";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- =========================================================
 -- SHARED FUNCTIONS
@@ -25,7 +26,7 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'post_visibility') THEN
-        CREATE TYPE post_visibility AS ENUM ('public', 'friends', 'private');
+        CREATE TYPE post_visibility AS ENUM ('public', 'friends', 'custom', 'private');
     END IF;
 END
 $$;
@@ -71,8 +72,15 @@ CREATE TABLE IF NOT EXISTS users (
     CHECK (avatar_url IS NULL OR length(trim(avatar_url)) > 0)
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_username_trgm
+ON users USING gin (username gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_users_display_name_trgm
+ON users USING gin (display_name gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_users_email_trgm
+ON users USING gin (email gin_trgm_ops);
+
 
 DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at
@@ -388,3 +396,149 @@ CREATE TRIGGER trg_mark_message_as_edited
 BEFORE UPDATE ON messages
 FOR EACH ROW
 EXECUTE FUNCTION mark_message_as_edited();
+
+-- Reactions enum
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'reaction_type') THEN
+        CREATE TYPE reaction_type AS ENUM ('like', 'deslike', 'love', 'haha', 'wow', 'sad', 'angry');
+    END IF;
+END
+$$;
+
+-- =========================================================
+-- REACTIONS
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS post_reactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reaction reaction_type NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (post_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);
+CREATE INDEX IF NOT EXISTS idx_post_reactions_user_id ON post_reactions (user_id);
+CREATE INDEX IF NOT EXISTS idx_post_reactions_reaction ON post_reactions (reaction);
+
+DROP TRIGGER IF EXISTS update_post_reactions_updated_at ON post_reactions;
+CREATE TRIGGER update_post_reactions_updated_at
+BEFORE UPDATE ON post_reactions
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- =========================================================
+-- Comments
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS comments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+    parent_comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+
+    content TEXT NOT NULL,
+    is_edited BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ,
+
+    CHECK (content IS NULL OR length(trim(content)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments (post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_author_id ON comments (author_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parents_id ON comments (parent_comment_id);
+CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments (created_at DESC);
+
+DROP TRIGGER IF EXISTS update_comments_updated_at ON comments;
+CREATE TRIGGER update_comments_updated_at
+BEFORE UPDATE ON comments
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- Notifications enum
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notification_type') THEN
+        CREATE TYPE notification_type AS ENUM (
+            'friend_request',
+            'friend_request_accepted',
+            'follow',
+            'post_from_following',
+            'post_from_friend',
+            'post_reaction',
+            'comment',
+            'comment_reply',
+            'message'
+        );
+    END IF;
+END
+$$;
+
+
+-- =========================================================
+-- NOTIFICATIONS
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    actor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+    type notification_type NOT NULL,
+    data JSONB,    
+
+    post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+    comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+    message_id UUID REFERENCES messages(id) ON DELETE CASCADE,
+
+    content TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    read_at TIMESTAMPTZ
+);
+
+    CREATE INDEX if NOT EXISTS idx_notifications_user_id (user_id),
+    CREATE INDEX if NOT EXISTS idx_notifications_type (type),
+    CREATE INDEX if NOT EXISTS idx_notifications_created_at (created_at DESC);  
+
+-- =========================================================
+-- post_visibility_rules
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS post_visibility_rules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+    can_view BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    UNIQUE (post_id, user_id)
+);
+create index if not exists idx_post_visibility_rules_post_id on post_visibility_rules (post_id);
+create index if not exists idx_post_visibility_rules_user_id on post_visibility_rules (user_id);
+
+--- =========================================================
+
+-- FULL-TEXT SEARCH
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS search_vector tsvector
+GENERATED ALWAYS AS (
+    setweight(to_tsvector('simple', coalesce(username::text, '')), 'A') ||
+    setweight(to_tsvector('simple', coalesce(display_name, '')), 'B')
+) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_users_search_vector
+ON users USING GIN (search_vector);
