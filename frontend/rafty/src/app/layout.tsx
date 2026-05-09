@@ -14,11 +14,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <body>
-        <QueryProvider>
-          {children}
-        </QueryProvider>
+    <html lang="en">
+      <body className="bg-[#071018] text-white antialiased">
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   );

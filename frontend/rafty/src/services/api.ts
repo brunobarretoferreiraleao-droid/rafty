@@ -6,18 +6,12 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const storage = localStorage.getItem("rafty-auth-store");
+    const token = localStorage.getItem("token");
 
-    if (storage) {
-      const parsed = JSON.parse(storage);
-
-      const token = parsed.token;
-
-      if (token) {
-        config.headers.Authorization = `Bearer ${parsed.token}`;
-      }
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
   }
-  
+
   return config;
 });
