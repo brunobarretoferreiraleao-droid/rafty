@@ -1,36 +1,392 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🌊 Rafty Frontend
 
-## Getting Started
+Frontend oficial do projeto **Rafty**.
 
-First, run the development server:
+Uma rede social moderna focada em:
+
+* fluidez
+* minimalismo
+* comunidades
+* perfis
+* feed customizável
+* comunicação social integrada
+
+A proposta do Rafty é funcionar como uma espécie de oceano digital:
+posts, pessoas, comunidades e conversas fluindo em uma única infraestrutura.
+
+---
+
+# ⚓ Stack
+
+O frontend foi construído utilizando:
+
+* Next.js 15
+* React
+* TypeScript
+* TailwindCSS v4
+* shadcn/ui
+* TanStack Query
+* Zustand
+* Axios
+
+---
+
+# 📁 Estrutura
+
+```txt
+frontend/
+└── rafty/
+    ├── public/
+    ├── src/
+    │   ├── app/
+    │   │   ├── (auth)/
+    │   │   │   ├── login/
+    │   │   │   └── register/
+    │   │   │
+    │   │   ├── (main)/
+    │   │   │   ├── feed/
+    │   │   │   ├── profile/
+    │   │   │   └── settings/
+    │   │   │
+    │   │   ├── layout.tsx
+    │   │   └── page.tsx
+    │   │
+    │   ├── components/
+    │   │   ├── layout/
+    │   │   ├── feed/
+    │   │   ├── post/
+    │   │   ├── auth/
+    │   │   └── ui/
+    │   │
+    │   ├── hooks/
+    │   ├── providers/
+    │   ├── services/
+    │   ├── stores/
+    │   ├── lib/
+    │   └── types/
+    │
+    ├── .env.local
+    ├── package.json
+    └── tsconfig.json
+```
+
+---
+
+# 🚀 Como rodar o projeto
+
+## 1. Entrar na pasta
+
+```bash
+cd frontend/rafty
+```
+
+---
+
+## 2. Instalar dependências
+
+```bash
+npm install
+```
+
+---
+
+## 3. Configurar variáveis de ambiente
+
+Crie um arquivo:
+
+```txt
+.env.local
+```
+
+E coloque:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8082
+```
+
+⚠️ IMPORTANTE:
+A API backend do Rafty roda atualmente na porta:
+
+```txt
+8082
+```
+
+---
+
+## 4. Rodar o frontend
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O frontend ficará disponível em:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```txt
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+# 🔌 Backend necessário
 
-To learn more about Next.js, take a look at the following resources:
+O backend precisa estar rodando antes do frontend.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Backend esperado:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```txt
+http://localhost:8082
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# 🧠 Estado global
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+O projeto usa Zustand para:
+
+* autenticação
+* token JWT
+* usuário atual
+* estados globais de UI
+* sidebar
+* preferências
+
+Exemplo:
+
+```ts
+import { useAuthStore } from "@/stores/use-auth-store";
+```
+
+---
+
+# 🌊 React Query
+
+O TanStack Query é utilizado para:
+
+* cache
+* sincronização
+* refetch automático
+* loading states
+* mutations
+
+Provider:
+
+```tsx
+<QueryProvider>
+  {children}
+</QueryProvider>
+```
+
+---
+
+# 🔐 Autenticação
+
+O backend retorna um JWT.
+
+Fluxo:
+
+1. usuário faz login
+2. backend retorna token
+3. token é salvo no Zustand
+4. Axios envia Authorization Bearer automaticamente
+5. usuário autenticado acessa feed
+
+---
+
+# 🌐 Axios
+
+Configuração base:
+
+```ts
+import axios from "axios";
+
+export const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+});
+```
+
+Interceptor recomendado:
+
+```ts
+api.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().token;
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+```
+
+---
+
+# 🎨 Filosofia visual
+
+O design do Rafty é inspirado em:
+
+* oceano
+* profundidade
+* fluidez
+* interfaces limpas
+* minimalismo moderno
+* vidro fosco
+* navegação suave
+
+Referências conceituais:
+
+* Discord
+* Reddit
+* Twitter/X
+* Notion
+* Pinterest
+* fóruns clássicos
+
+Mas com identidade própria.
+
+---
+
+# 🧩 Estrutura das páginas
+
+## Landing Page
+
+Objetivo:
+
+* apresentar o conceito
+* onboarding
+* CTA de cadastro
+* identidade visual
+
+---
+
+## Login
+
+Objetivo:
+
+* autenticação simples
+* experiência rápida
+* sem distrações
+
+---
+
+## Register
+
+Objetivo:
+
+* criar conta
+* iniciar onboarding
+* entrada rápida no feed
+
+---
+
+## Feed
+
+Objetivo:
+
+* centralizar o conteúdo
+* experiência modular
+* feed altamente customizável
+
+Estrutura:
+
+```txt
+Navbar
+Sidebar opcional
+Feed central
+Painéis laterais futuros
+```
+
+---
+
+# 🧱 Componentização
+
+O frontend é organizado por responsabilidade.
+
+Exemplo:
+
+```txt
+components/
+├── auth/
+├── feed/
+├── layout/
+├── post/
+└── ui/
+```
+
+Isso facilita:
+
+* escalabilidade
+* manutenção
+* reutilização
+* legibilidade
+
+---
+
+# 📌 Roadmap inicial
+
+## MVP
+
+* [x] Cadastro
+* [x] Login
+* [x] Feed
+* [x] Criar posts
+* [ ] Perfil
+* [ ] Upload de mídia
+* [ ] Comentários
+* [ ] Reações
+* [ ] Amigos
+* [ ] Mensagens
+
+---
+
+## Futuro
+
+* [ ] Comunidades
+* [ ] Feed configurável
+* [ ] Boards públicos
+* [ ] Chat em tempo real
+* [ ] Sistema modular de perfis
+* [ ] Temas customizados
+* [ ] Algoritmo de recomendação
+* [ ] Streaming
+* [ ] Marketplace criativo
+* [ ] Integração multimídia
+
+---
+
+# 🛠️ Scripts
+
+Rodar desenvolvimento:
+
+```bash
+npm run dev
+```
+
+Build de produção:
+
+```bash
+npm run build
+```
+
+Rodar produção:
+
+```bash
+npm start
+```
+
+Lint:
+
+```bash
+npm run lint
+```
+
+---
+
+# 📜 Licença
+
+Apache 2.0
+
+---
+
+# 🌊 Rafty
+
+"Everything flows."
