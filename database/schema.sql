@@ -88,6 +88,28 @@ BEFORE UPDATE ON users
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
+--- =========================================================
+-- Communities table
+--- =========================================================
+
+CREATE TABLE IF NOT EXISTS communities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+
+    name CITEXT unique NOT NULL,
+    slug CITEXT unique NOT NULL,
+
+    description TEXT,
+    avatar_url TEXT,
+    banner_url TEXT,
+
+    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+    is_private BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- =========================================================
 -- POSTS
 -- =========================================================
@@ -107,7 +129,7 @@ CREATE TABLE IF NOT EXISTS posts (
     community_id UUID REFERENCES communities(id) ON DELETE SET NULL,
 
     CHECK (title IS NULL OR length(trim(title)) > 0),
-    CHECK (content IS NULL OR length(trim(content)) > 0)
+    CHECK (length(trim(content)) > 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts (author_id);
@@ -115,6 +137,8 @@ CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_visibility ON posts (visibility);
 
 CREATE INDEX IF NOT EXISTS idx_posts_author_created_at ON posts (author_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_posts_feed ON posts (visibility, created_at DESC) WHERE deleted_at IS NULL;
 
 DROP TRIGGER IF EXISTS update_posts_updated_at ON posts;
 CREATE TRIGGER update_posts_updated_at
@@ -175,7 +199,7 @@ CREATE TABLE IF NOT EXISTS friends (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     PRIMARY KEY (user_id1, user_id2),
-    CHECK (user_id1 < user_id2)
+    CHECK (user_id1 <> user_id2)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_friends_unique_pair ON friends (
@@ -300,7 +324,7 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CHECK (content IS NULL OR length(trim(content)) > 0)
+    CHECK (length(trim(content)) > 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at
@@ -404,7 +428,7 @@ EXECUTE FUNCTION mark_message_as_edited();
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'reaction_type') THEN
-        CREATE TYPE reaction_type AS ENUM ('like', 'deslike', 'love', 'haha', 'wow', 'sad', 'angry');
+        CREATE TYPE reaction_type AS ENUM ('like', 'dislike', 'love', 'haha', 'wow', 'sad', 'angry');
     END IF;
 END
 $$;
@@ -453,19 +477,38 @@ CREATE TABLE IF NOT EXISTS comments (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ,
 
-    CHECK (content IS NULL OR length(trim(content)) > 0)
+    CHECK (length(trim(content)) > 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments (post_id);
 CREATE INDEX IF NOT EXISTS idx_comments_author_id ON comments (author_id);
 CREATE INDEX IF NOT EXISTS idx_comments_parents_id ON comments (parent_comment_id);
 CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comments_post_parent ON comments(post_id, parent_comment_id);
 
 DROP TRIGGER IF EXISTS update_comments_updated_at ON comments;
 CREATE TRIGGER update_comments_updated_at
 BEFORE UPDATE ON comments
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE FUNCTION mark_comment_as_edited()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.content IS DISTINCT FROM OLD.content THEN
+        NEW.is_edited = TRUE;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_mark_comment_as_edited ON comments;
+
+CREATE TRIGGER trg_mark_comment_as_edited
+BEFORE UPDATE ON comments
+FOR EACH ROW
+EXECUTE FUNCTION mark_comment_as_edited();
 
 -- Notifications enum
 DO $$
@@ -511,9 +554,10 @@ CREATE TABLE IF NOT EXISTS notifications (
     read_at TIMESTAMPTZ
 );
 
-    CREATE INDEX if NOT EXISTS idx_notifications_user_id (user_id) ON notifications(user_id);
-    CREATE INDEX if NOT EXISTS idx_notifications_type (type) ON notifications(type);
-    CREATE INDEX if NOT EXISTS idx_notifications_created_at (created_at DESC) ON notifications(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+    CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read, created_at DESC);
 
 -- =========================================================
 -- post_visibility_rules
@@ -536,34 +580,23 @@ create index if not exists idx_post_visibility_rules_user_id on post_visibility_
 --- =========================================================
 
 -- FULL-TEXT SEARCH
-ALTER TABLE users
-ADD COLUMN IF NOT EXISTS search_vector tsvector
-GENERATED ALWAYS AS (
-    setweight(to_tsvector('simple', coalesce(username::text, '')), 'A') ||
-    setweight(to_tsvector('simple', coalesce(display_name, '')), 'B')
-) STORED;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name='users'
+        AND column_name='search_vector'
+    ) THEN
+        ALTER TABLE users
+        ADD COLUMN search_vector tsvector
+        GENERATED ALWAYS AS (
+            setweight(to_tsvector('simple', coalesce(username::text, '')), 'A') ||
+            setweight(to_tsvector('simple', coalesce(display_name, '')), 'B')
+        ) STORED;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_users_search_vector
 ON users USING GIN (search_vector);
 
---- =========================================================
--- Communities table
---- =========================================================
-
-CREATE TABLE IF NOT EXISTS communities (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-
-    name CITEXT unique NOT NULL,
-    slug CITEXT unique NOT NULL,
-
-    description TEXT,
-    avatar_url TEXT,
-    banner_url TEXT,
-
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-
-    is_private BOOLEAN NOT NULL DEFAULT FALSE,
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
