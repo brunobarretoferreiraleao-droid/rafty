@@ -1,10 +1,7 @@
+import type { Post } from "@/types/post";
+
 type PostCardProps = {
-  post: {
-    id: string;
-    content?: string;
-    title?: string;
-    created_at: string;
-  };
+  post: Post;
 };
 
 export function PostCard({ post }: PostCardProps) {
