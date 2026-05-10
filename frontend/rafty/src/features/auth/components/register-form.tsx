@@ -36,14 +36,22 @@ export function RegisterForm() {
 
       router.push("/feed");
     } catch (err: unknown) {
-        if (axios.isAxiosError(err)) {
-          setError(err.response?.data?.message || "Erro ao cadastrar");
-        } else {
-          setError("Erro ao cadastrar");
-        }  
-    } finally {
+  console.log(err);
+
+  if (axios.isAxiosError(err)) {
+    console.log(err.response?.data);
+
+    setError(
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      "Erro ao cadastrar"
+    );
+  } else {
+    setError("Erro ao cadastrar");
+  }
+}  finally {
       setLoading(false);
-    }
+    }    
   }
 
   return (
