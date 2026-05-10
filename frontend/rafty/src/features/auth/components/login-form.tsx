@@ -30,7 +30,7 @@ export function LoginForm() {
         password,
       });
 
-      setAuth(response.data.token, response.data.user);
+      setAuth(response.token, response.data.user);
 
       router.push("/feed");
     } catch (err: unknown) {
