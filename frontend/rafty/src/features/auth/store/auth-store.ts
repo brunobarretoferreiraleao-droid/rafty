@@ -18,21 +18,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
   token: null,
   user: null,
 
-  setAuth: (token, user) => {
-    localStorage.setItem("token", token);
-
+  setAuth: (token, user) =>
     set({
       token,
       user,
-    });
-  },
+    }),
 
-  logout: () => {
-    localStorage.removeItem("token");
-
+  logout: () =>
     set({
       token: null,
       user: null,
-    });
-  },
+    }),
 }));
