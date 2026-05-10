@@ -32,14 +32,14 @@ export function RegisterForm() {
         password,
       });
 
-      setAuth(response.data.token, response.data.user);
+      setAuth(response.token, response.user);
 
       router.push("/feed");
     } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
-          setError(err.response?.data?.error || "Erro ao logar");
+          setError(err.response?.data?.message || "Erro ao cadastrar");
         } else {
-          setError("Erro ao logar");
+          setError("Erro ao cadastrar");
         }  
     } finally {
       setLoading(false);
